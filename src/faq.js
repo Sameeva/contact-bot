@@ -1,6 +1,5 @@
 // Fixed answers for common questions. Edit freely: keywords are matched against free-text
-// messages (accents and case ignored), first match wins. Level 2 (a language model) would
-// plug in where `matchFaq` returns null, see README.
+// messages (accents and case ignored), first match wins. Rules only, no language model.
 
 const norm = (s) => String(s).toLowerCase().normalize("NFD").replace(/[̀-ًͯ-ٟ]/g, "");
 
@@ -8,7 +7,7 @@ export const FAQ = [
   {
     id: "price",
     kw: {
-      en: ["price", "pricing", "cost", "how much", "rate", "quote"],
+      en: ["price", "prices", "pricing", "cost", "how much", "rate", "quote"],
       fr: ["prix", "tarif", "combien", "coût", "devis"],
       ar: ["سعر", "أسعار", "تكلفة", "ثمن", "بكم", "عرض سعر"]
     },
@@ -69,6 +68,47 @@ export const FAQ = [
       fr: "Voici mon travail : https://sameeva.github.io",
       ar: "هذه أعمالي: https://sameeva.github.io"
     }
+  },
+  {
+    id: "bot",
+    kw: {
+      en: ["are you a bot", "are you real", "real person", "is this a bot", "who am i talking to"],
+      fr: ["êtes-vous un bot", "es-tu un bot", "vraie personne"],
+      ar: ["هل أنت بوت", "هل انت بوت", "شخص حقيقي"]
+    },
+    a: {
+      en: "I'm a bot that collects your brief. Houssam reads every message himself and replies here.",
+      fr: "Je suis un bot qui recueille votre besoin. Houssam lit lui-même chaque message et répond ici.",
+      ar: "أنا بوت يجمع تفاصيل طلبك. يقرأ حسام كل رسالة بنفسه ويرد هنا."
+    }
+  },
+  {
+    id: "hello",
+    maxWords: 3,
+    kw: {
+      en: ["hi", "hello", "hey", "good morning", "good evening"],
+      fr: ["salut", "bonjour", "bonsoir", "coucou", "salam", "slm"],
+      ar: ["مرحبا", "السلام عليكم", "اهلا", "أهلا", "سلام"]
+    },
+    a: {
+      en: "Hello! Send /start for a quick guided brief, or just write what you need.",
+      fr: "Bonjour ! Envoyez /start pour un court cadrage guidé, ou écrivez simplement votre besoin.",
+      ar: "مرحبًا! أرسل /start لنقاش قصير موجّه، أو اكتب ما تحتاجه مباشرة."
+    }
+  },
+  {
+    id: "thanks",
+    maxWords: 3,
+    kw: {
+      en: ["thanks", "thank you", "thx"],
+      fr: ["merci"],
+      ar: ["شكرا", "شكرًا", "جزاك الله"]
+    },
+    a: {
+      en: "You're welcome! Houssam will reply here.",
+      fr: "Avec plaisir ! Houssam vous répondra ici.",
+      ar: "على الرحب والسعة! سيرد عليك حسام هنا."
+    }
   }
 ];
 
@@ -78,11 +118,23 @@ export function faqAnswer(id, lang) {
   return FAQ.find((e) => e.id === id)?.a[lang];
 }
 
+const LATIN = /^[a-z0-9 '\-]+$/;
+const escRe = (k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Latin keywords match whole words only ("rate" must not match "generate").
+// Arabic has no reliable word boundary in plain text, so it keeps substring matching.
+function hit(t, keyword) {
+  const k = norm(keyword);
+  return LATIN.test(k) ? new RegExp(`(^|[^a-z0-9])${escRe(k)}([^a-z0-9]|$)`).test(t) : t.includes(k);
+}
+
 export function matchFaq(text) {
   const t = norm(text);
+  const words = t.split(/\s+/).filter(Boolean).length;
   for (const entry of FAQ) {
+    if (entry.maxWords && words > entry.maxWords) continue;
     for (const lang of LANGS) {
-      if (entry.kw[lang].some((k) => t.includes(norm(k)))) return { id: entry.id, lang, answer: entry.a[lang] };
+      if (entry.kw[lang].some((k) => hit(t, k))) return { id: entry.id, lang, answer: entry.a[lang] };
     }
   }
   return null;

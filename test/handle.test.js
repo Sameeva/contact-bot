@@ -115,3 +115,30 @@ test("group chats and bots are ignored; /id works for anyone", () => {
 test("very long messages are truncated", () => {
   assert.ok(run(msg({ text: "a".repeat(9000) }))[0].body.text.length < 4096);
 });
+
+test("FAQ matching uses whole words, not fragments", () => {
+  assert.equal(matchFaq("I want to generate reports"), null);
+  assert.equal(matchFaq("a payment processor integration"), null);
+  assert.equal(matchFaq("What are your prices?").id, "price");
+  assert.equal(matchFaq("a robot for my warehouse"), null);
+});
+
+test("FAQ: short greetings and thanks are answered, long messages with a greeting are not", () => {
+  assert.equal(matchFaq("Salam").id, "hello");
+  assert.equal(matchFaq("hello").lang, "en");
+  assert.equal(matchFaq("merci beaucoup").id, "thanks");
+  assert.equal(matchFaq("Hello, I need a website for my shop"), null);
+  assert.equal(matchFaq("Hello, how much for a website?").id, "price");
+});
+
+test("FAQ: are you a bot is answered without inventing business facts", () => {
+  const f = matchFaq("Are you a bot?");
+  assert.equal(f.id, "bot");
+  assert.match(f.answer, /Houssam reads every message/);
+});
+
+test("a greeting is still forwarded to the owner and marked auto-answered", () => {
+  const calls = run(msg({ text: "Bonjour" }));
+  assert.match(calls[0].body.text, /Auto-answered: hello/);
+  assert.equal(calls[0].body.chat_id, OWNER);
+});
